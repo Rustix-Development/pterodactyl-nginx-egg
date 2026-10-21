@@ -34,6 +34,15 @@ RUN set -eux; \
     php -v; php-fpm -v; nginx -v; \
     adduser -D -h /home/container container
 
+# Interim mitigation for CVE-2026-109618/109619 (php2shell) until Alpine ships the fixed PHP.
+# php.net says these must be set in the system config, ini_set() and .user.ini don't help.
+# https://www.php.net/archive/2026.php#2026-10-21-5
+RUN set -eux; \
+    ini="/etc/php$(echo "${PHP_VERSION}" | tr -d .)/conf.d/00-php2shell-mitigation.ini"; \
+    echo "session.upload_progress.enabled = 0" > "$ini"; \
+    case "${PHP_VERSION}" in 8.3|8.4) ;; *) echo "fatal_error_backtraces = 0" >> "$ini" ;; esac; \
+    php -r 'exit(ini_get("session.upload_progress.enabled") ? 1 : 0);'
+
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod 755 /entrypoint.sh
