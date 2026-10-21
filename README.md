@@ -15,7 +15,7 @@ A [Pterodactyl](https://pterodactyl.io) egg for hosting PHP and static websites 
   connection string are passed to PHP, so your code reads them with `getenv()` instead of
   hardcoding them
 - **Update check**: the console says when the egg or the Docker image has an update
-- **Maintained images**: Alpine based, `amd64` and `arm64`, rebuilt weekly for nginx and PHP
+- **Maintained images**: Debian based with PHP from packages.sury.org, `amd64` and `arm64`, rebuilt weekly for nginx and PHP
   security fixes
 
 ## Requirements
@@ -93,7 +93,7 @@ $mail->Password = getenv('SMTP_PASSWORD');
 ## What's in the image
 
 The images are `ghcr.io/rustix-development/pterodactyl-nginx-egg:php8.3`, `:php8.4` and `:php8.5`,
-built from [`docker/Dockerfile`](docker/Dockerfile) on Alpine with nginx, PHP-FPM,
+built from [`docker/Dockerfile`](docker/Dockerfile) on Debian 13 with nginx, PHP-FPM (from packages.sury.org),
 Composer 2 and Git.
 
 PHP extensions: apcu, bcmath, ctype, curl, dom, exif, fileinfo, gd, gettext, gmp, iconv,

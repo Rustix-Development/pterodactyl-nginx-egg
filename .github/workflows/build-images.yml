@@ -7,7 +7,7 @@ on:
       - "docker/**"
       - ".github/workflows/build-images.yml"
   schedule:
-    # Weekly rebuild to pick up nginx/PHP security updates from Alpine
+    # Weekly rebuild to pick up nginx/PHP security updates from Debian and packages.sury.org
     - cron: "23 4 * * 1"
   workflow_dispatch:
 
