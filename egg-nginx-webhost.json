@@ -192,7 +192,7 @@
         },
         {
             "name": "Mail From Name",
-            "description": "The display name shown as the sender on outgoing mail, e.g. \"Allstar Website\".\r\n\r\nLeave blank to fall back to \"{Site Name} Contact Form\".",
+            "description": "The display name shown as the sender on outgoing mail, e.g. \"My Site\".\r\n\r\nLeave blank to fall back to \"{Site Name} Contact Form\".",
             "env_variable": "MAIL_FROM_NAME",
             "default_value": "",
             "user_viewable": true,
@@ -212,7 +212,7 @@
         },
         {
             "name": "Site Name",
-            "description": "Short name for this site, used in the contact form's email subject line and internal error logs, e.g. \"Allstar\".\r\n\r\nPurely cosmetic, doesn't need to match anything else.",
+            "description": "Short name for this site, used in the contact form's email subject line and internal error logs, e.g. \"My Site\".\r\n\r\nPurely cosmetic, doesn't need to match anything else.",
             "env_variable": "SITE_NAME",
             "default_value": "Website",
             "user_viewable": true,
@@ -222,7 +222,7 @@
         },
         {
             "name": "Site URL",
-            "description": "The public URL this site is reached at, no trailing slash, e.g. \"https:\/\/flyphoenixairlines.com\".\r\n\r\nUsed to build password reset links, unsubscribe links, email notification links, and the Discord OAuth redirect URL. Leave blank to fall back to the value baked into config.php.",
+            "description": "The public URL this site is reached at, no trailing slash, e.g. \"https:\/\/example.com\".\r\n\r\nUsed to build password reset links, unsubscribe links, email notification links, and the Discord OAuth redirect URL. Leave blank to fall back to the value baked into config.php.",
             "env_variable": "SITE_URL",
             "default_value": "",
             "user_viewable": true,
