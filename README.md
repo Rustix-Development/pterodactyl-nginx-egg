@@ -27,8 +27,8 @@ A [Pterodactyl](https://pterodactyl.io) egg for hosting PHP and static websites 
 
 ## Install
 
-1. Download [`egg-nginx-webhost.json`](https://github.com/Rustix-Development/pterodactyl-nginx-egg/releases/latest/download/egg-nginx-webhost.json)
-   from the [latest release](https://github.com/Rustix-Development/pterodactyl-nginx-egg/releases/latest).
+1. Download `egg-nginx-webhost-<version>.json` from the
+   [latest release](https://github.com/Rustix-Development/pterodactyl-nginx-egg/releases/latest).
 2. In the panel: **Admin → Nests → Import Egg**, upload it into the nest you want.
 3. Create a server with the egg and pick a PHP version under **Docker Image**.
 4. Once it has installed, start it and visit `http://<node-ip>:<port>`. You should see the
@@ -154,7 +154,7 @@ only into an empty `webroot/`. Your other website files are kept.
 
 Every time a server starts it checks for updates in the background and says in the console if:
 
-- **the egg has an update**: download `egg-nginx-webhost.json` from the
+- **the egg has an update**: download `egg-nginx-webhost-<version>.json` from the
   [latest release](https://github.com/Rustix-Development/pterodactyl-nginx-egg/releases/latest), then
   **Admin → Nests → (nest) → Nginx Webhost → Update Egg** with it (not *Import Egg*, that
   makes a second copy), and **Reinstall** the server.
