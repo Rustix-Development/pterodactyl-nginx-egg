@@ -49,12 +49,44 @@ blank.
 |----------|---------|--------------|
 | Wordpress (`WORDPRESS`) | `0` | Install WordPress into an empty `webroot/`. Finish setup at `/wp-admin` |
 | Composer modules (`COMPOSER_MODULES`) | | Space separated packages, e.g. `phpmailer/phpmailer vlucas/phpdotenv`. Pin a version with `vendor/package:^6.0` |
+| Root Folder (`ROOT_FOLDER`) | | Folder in `webroot/` to serve at your domain's root, see [below](#serving-a-folder-at-the-root). Blank serves `webroot/` as is |
 | User Uploaded Files (`USER_UPLOAD`) | `0` | Skip the Git setup, you upload the files yourself |
 | Update Check (`UPDATE_CHECK`) | `1` | Say in the console when the egg or the Docker image has an update |
 | Startup Command (`STARTUP_CMD`) | `./start.sh` | Leave as is unless you know you need to change it |
 
 Each Composer package is added once and then kept at that version. On every start
 `composer install` keeps `vendor/` in line with `composer.lock`.
+
+### Serving a folder at the root
+
+Keep your main site in its own folder (any name) and other sites next to it:
+
+```
+webroot/
+├── <folder>/  -> example.com/
+├── blog/      -> example.com/blog/
+└── shop/      -> example.com/shop/
+```
+
+Set **Root Folder** to `<folder>` (the folder's name, e.g. `site`, or a path to a nested
+folder, e.g. `dev/main` for `webroot/dev/main`) in the server's **Startup** tab and restart
+the server. `webroot/<folder>` is then served at `/`, every other
+folder in `webroot/` is still served at its own path (`webroot/blog` at `/blog/`), and old
+links to `/<folder>/...` redirect to the same page at `/...`. PHP and the dotfile blocking
+work the same in all of them.
+
+- Each part of the path can use letters, numbers, `.`, `_` and `-`, and starts with a letter
+  or number (no spaces, no `..`).
+- With a nested path like `dev/main`, the other folders in `webroot/dev` are still served at
+  `/dev/<other>/`.
+- If the main site and `webroot/` both have a folder with the same name (e.g.
+  `<folder>/shop` and `shop/`), `webroot/shop` wins.
+- Files at the top of `webroot/` (not in a folder) aren't served.
+- Composer still installs into `webroot/`, so from the main site load it with
+  `require __DIR__ . '/../vendor/autoload.php';`.
+- If the folder doesn't exist the server serves `webroot/` as is and says so in the console.
+- Servers installed before the egg had this option need a **Reinstall** first (see
+  [Updates](#updates)) to get the new `nginx/conf.d/default.conf`.
 
 ### Git
 

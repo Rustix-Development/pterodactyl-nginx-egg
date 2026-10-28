@@ -190,6 +190,58 @@ else
     exit 1
 fi
 
+# nginx's root, from the Root Folder variable (default.conf includes the file written here).
+# Blank: webroot. A folder in webroot (a name or a path like dev/main): that folder is the
+# site at /, the other folders in webroot are still served at /<folder>/, and
+# /<root folder>/... redirects to /...
+write_root_conf() {
+    conf=/home/container/tmp/nginx-root.conf
+    folder=$(printf '%s' "${ROOT_FOLDER}" | sed 's#//*#/#g; s#^/##; s#/$##')
+
+    # Every part of the path starts with a letter or digit, so no "..", dotfiles or spaces
+    if [ -n "${folder}" ] && ! printf '%s' "${folder}" | grep -qE '^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$'; then
+        log_warning "Root Folder \"${ROOT_FOLDER}\" isn't a folder path in webroot, serving webroot as is."
+        folder=""
+    elif [ -n "${folder}" ] && [ ! -d "webroot/${folder}" ]; then
+        log_warning "Root Folder: webroot/${folder} doesn't exist, serving webroot as is."
+        folder=""
+    fi
+
+    if [ -z "${folder}" ]; then
+        echo "root /home/container/webroot;" > "${conf}"
+        return
+    fi
+
+    escaped=$(printf '%s' "${folder}" | sed 's/\./\\./g')
+    cat > "${conf}" <<EOF
+# Written by start.sh from the Root Folder variable, edits are lost on restart.
+
+# Send redirects as /path so they keep the address and port the visitor used
+absolute_redirect off;
+
+# Old links to /${folder}/... go to the same page at /...
+if (\$request_uri ~ "^/${escaped}(?:/|(?=\\?)|\$)(.*)\$") {
+    return 301 /\$1;
+}
+
+# A folder in webroot is served at /<folder>/, everything else comes from webroot/${folder}
+set \$site_folder "/${folder}";
+set \$first_folder "";
+if (\$uri ~ "^/([^/]+)") {
+    set \$first_folder "/home/container/webroot/\$1";
+}
+if (-d \$first_folder) {
+    set \$site_folder "";
+}
+root /home/container/webroot\$site_folder;
+EOF
+    log_info "Serving webroot/${folder} at /, the other folders in webroot at /<folder>/."
+    if ! grep -qs 'tmp/nginx-root.conf' nginx/conf.d/default.conf; then
+        log_warning "Root Folder is set, but nginx/conf.d/default.conf is from an older egg and ignores it. Reinstall the server (Settings -> Reinstall Server) to get the new config."
+    fi
+}
+write_root_conf
+
 log_info "Starting nginx..."
 set -- -e stderr -c /home/container/nginx/nginx.conf -p /home/container/
 if ! grep -qE '^[[:space:]]*worker_processes' /home/container/nginx/nginx.conf; then
