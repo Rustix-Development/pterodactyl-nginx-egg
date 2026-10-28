@@ -2,6 +2,8 @@ name: Release egg
 
 # Publishes egg-nginx-webhost.json as a GitHub release named after the EGG_VERSION in its
 # install script (e.g. v1.0.0). Bump EGG_VERSION to make a new release.
+# The egg is attached twice: egg-nginx-webhost-<version>.json to download, and
+# egg-nginx-webhost.json, which servers' update checks fetch from the latest release.
 on:
   push:
     branches: [main]
@@ -47,17 +49,27 @@ jobs:
           TAG: v${{ steps.egg.outputs.version }}
           REPUBLISH: ${{ inputs.republish }}
         run: |
+          name="egg-nginx-webhost-${TAG#v}.json"
+          versioned="${RUNNER_TEMP}/${name}"
+          cp egg-nginx-webhost.json "${versioned}"
+
           if [ "$(gh release view "${TAG}" --json isDraft --jq .isDraft 2>/dev/null)" = "false" ]; then
             gh release download "${TAG}" --pattern egg-nginx-webhost.json --output "${RUNNER_TEMP}/released.json"
             if cmp -s egg-nginx-webhost.json "${RUNNER_TEMP}/released.json"; then
-              echo "Release ${TAG} already exists with this egg, nothing to do."
+              # Releases made before the versioned file existed get it added
+              if gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qxF "${name}"; then
+                echo "Release ${TAG} already exists with this egg, nothing to do."
+              else
+                gh release upload "${TAG}" "${versioned}"
+                echo "Added ${name} to release ${TAG}."
+              fi
               exit 0
             fi
             if [ "${REPUBLISH}" = "true" ]; then
               # Run by hand with "republish": swap the egg in the existing release. The tag
               # stays where it is, release tags are protected and can't be moved
-              gh release upload "${TAG}" egg-nginx-webhost.json --clobber
-              echo "Replaced egg-nginx-webhost.json in release ${TAG}."
+              gh release upload "${TAG}" egg-nginx-webhost.json "${versioned}" --clobber
+              echo "Replaced the egg in release ${TAG}."
               exit 0
             fi
             echo "::error::egg-nginx-webhost.json changed but EGG_VERSION is still ${TAG#v}. Bump EGG_VERSION, or run this workflow by hand with \"republish\" ticked to replace the egg in ${TAG}."
@@ -66,7 +78,7 @@ jobs:
           cat > notes.md <<'EOF'
           ## Install
 
-          1. Download `egg-nginx-webhost.json` below.
+          1. Download `EGG_FILE` below.
           2. In the panel: **Admin → Nests → Import Egg**, upload it.
           3. Create a server with the egg, pick a PHP version (Docker Image), and visit `http://ip:port`.
 
@@ -74,8 +86,11 @@ jobs:
 
           **Admin → Nests → (nest) → Nginx Webhost → Update Egg** with this file (not Import Egg, that makes a second copy), then **Reinstall** your servers.
           Reinstalling replaces `nginx/`, `php-fpm/` and `start.sh` on each server (`webroot/` is kept), so back up any edits to them first.
+
+          `egg-nginx-webhost.json` is the same file, kept for the servers' update check.
           EOF
-          gh release create "${TAG}" egg-nginx-webhost.json \
+          sed -i "s/EGG_FILE/${name}/" notes.md
+          gh release create "${TAG}" "${versioned}" egg-nginx-webhost.json \
             --title "${TAG}" \
             --notes-file notes.md \
             --target "${GITHUB_SHA}"
