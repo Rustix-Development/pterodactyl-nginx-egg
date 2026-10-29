@@ -242,6 +242,46 @@ EOF
 }
 write_root_conf
 
+# What missing pages get (default.conf includes the file written here). Blank: index.php, like
+# before, so WordPress and other apps that route through it keep working. A path: that page,
+# with a 404 status. It's looked up like any other page, so with a Root Folder set it's in there.
+write_errors_conf() {
+    conf=/home/container/tmp/nginx-errors.conf
+    page=$(printf '%s' "${ERROR_404_PAGE}" | sed 's#//*#/#g; s#^/##')
+
+    # Same rules as Root Folder: every part starts with a letter or digit, so no "..", dotfiles or spaces
+    if [ -n "${page}" ] && ! printf '%s' "${page}" | grep -qE '^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$'; then
+        log_warning "404 Page \"${ERROR_404_PAGE}\" isn't a file path in your site, using the default 404."
+        page=""
+    fi
+
+    if [ -z "${page}" ]; then
+        cat > "${conf}" <<'EOF'
+# Written by start.sh, edits are lost on restart. 404 Page is blank: missing pages go to index.php.
+location @missing {
+    rewrite ^ /index.php last;
+}
+EOF
+        return
+    fi
+
+    cat > "${conf}" <<EOF
+# Written by start.sh from the 404 Page variable, edits are lost on restart.
+error_page 404 /${page};
+location @missing {
+    return 404;
+}
+EOF
+    log_info "Missing pages show /${page}."
+    if [ ! -f "webroot${folder:+/${folder}}/${page}" ]; then
+        log_warning "404 Page: webroot${folder:+/${folder}}/${page} doesn't exist, visitors get nginx's plain 404 until it does."
+    fi
+    if ! grep -qs 'tmp/nginx-errors.conf' nginx/conf.d/default.conf; then
+        log_warning "404 Page is set, but nginx/conf.d/default.conf is from an older egg and ignores it. Reinstall the server (Settings -> Reinstall Server) to get the new config."
+    fi
+}
+write_errors_conf
+
 log_info "Starting nginx..."
 set -- -e stderr -c /home/container/nginx/nginx.conf -p /home/container/
 if ! grep -qE '^[[:space:]]*worker_processes' /home/container/nginx/nginx.conf; then
