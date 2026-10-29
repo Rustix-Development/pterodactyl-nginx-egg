@@ -50,6 +50,7 @@ blank.
 | Wordpress (`WORDPRESS`) | `0` | Install WordPress into an empty `webroot/`. Finish setup at `/wp-admin` |
 | Composer modules (`COMPOSER_MODULES`) | | Space separated packages, e.g. `phpmailer/phpmailer vlucas/phpdotenv`. Pin a version with `vendor/package:^6.0` |
 | Root Folder (`ROOT_FOLDER`) | | Folder in `webroot/` to serve at your domain's root, see [below](#serving-a-folder-at-the-root). Blank serves `webroot/` as is |
+| 404 Page (`ERROR_404_PAGE`) | | Page to show for missing pages, see [below](#custom-404-page). Blank keeps sending them to `index.php` |
 | User Uploaded Files (`USER_UPLOAD`) | `0` | Skip the Git setup, you upload the files yourself |
 | Update Check (`UPDATE_CHECK`) | `1` | Say in the console when the egg or the Docker image has an update |
 | Startup Command (`STARTUP_CMD`) | `./start.sh` | Leave as is unless you know you need to change it |
@@ -87,6 +88,20 @@ work the same in all of them.
 - If the folder doesn't exist the server serves `webroot/` as is and says so in the console.
 - Servers installed before the egg had this option need a **Reinstall** first (see
   [Updates](#updates)) to get the new `nginx/conf.d/default.conf`.
+
+### Custom 404 page
+
+Set **404 Page** to the path of a page in your site, e.g. `404.html` or `errors/404.php`, and
+every page that doesn't exist shows it with a `404` status. HTML and PHP pages both work. The
+path is from your site's root: `webroot/`, or the **Root Folder** if you set one.
+
+- Blank (default) does what the egg always did: missing pages go to `index.php`, which is
+  what WordPress and other apps that route through `index.php` need. Leave it blank for those,
+  they show their own 404 page.
+- Links in the page should start with `/` (e.g. `/style.css`), it's shown at whatever address
+  was missing.
+- If the page doesn't exist, visitors get nginx's plain 404 and the console says so.
+- Needs a **Reinstall** first on servers installed before the egg had this option.
 
 ### Git
 
