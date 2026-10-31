@@ -7,7 +7,7 @@
     "exported_at": "2026-10-09T19:55:59+00:00",
     "name": "Nginx Webhost",
     "author": "mohamed@rustix.xyz",
-    "description": "Host any PHP or static website with nginx + PHP-FPM.\n\n- Composer: list packages in \"Composer modules\" and they're installed on startup\n- WordPress: turn on the WordPress option when creating the server\n- Git: clone your site from a Git repo, optionally pulling updates on every start\n- Mail, Site, Discord, Google and database variables are passed to PHP, so sites read them with getenv() instead of hardcoding them\n\nBased on the WebHost egg by Sigma Productions (originally tenten8401\/pterodactyl-nginx).",
+    "description": "Host any PHP or static website with nginx + PHP-FPM. Upload your files over SFTP or the file manager, or install WordPress.\n\n- WordPress: turn on \"Website \u00b7 WordPress\" when creating the server\n- Composer: list packages in \"Website \u00b7 Composer Modules\" and they're installed on startup\n- Site, Mail, Forms, Login and Database variables are passed to PHP, so sites read them with getenv() instead of hardcoding them\n\nWant the site pulled from a Git repo? Use the Nginx Webhost (Git) egg instead.\n\nBased on the WebHost egg by Sigma Productions (originally tenten8401\/pterodactyl-nginx).",
     "features": [],
     "docker_images": {
         "PHP 8.5": "ghcr.io\/rustix-development\/pterodactyl-nginx-egg:php8.5",
@@ -24,204 +24,14 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!\/bin\/ash\n# Nginx Webhost installer: installs the nginx\/PHP config and sets up the website files.\n\n# Bump this whenever the egg or the repo's config files change. Servers compare it with\n# the egg on GitHub at startup and show an update notice in the console.\nEGG_VERSION=\"1.0.5\"\n\nREPO=\"https:\/\/github.com\/Rustix-Development\/pterodactyl-nginx-egg\"\n\nis_true() { [ \"$1\" = \"1\" ] || [ \"$1\" = \"true\" ]; }\n\n# Drop user:token@ from a git URL so a changed token still counts as the same repo\nstrip_auth() { printf '%s' \"$1\" | sed -E 's#^([a-z]+:\/\/)[^\/@]*@#\\1#'; }\n\ntrap 'rm -rf \/tmp\/egg' EXIT\n\n# The install container has a terminal nobody types into: never wait for a git password\nexport GIT_TERMINAL_PROMPT=0\n\ncd \/mnt\/server || exit 1\napk add --no-cache git curl || { echo \"Failed to install git and curl\"; exit 1; }\n# Server files belong to the server user, not root; let git work on them anyway\ngit config --global --add safe.directory '*'\n\necho \"Downloading config files from ${REPO}\"\nrm -rf \/tmp\/egg\ngit clone --depth 1 \"${REPO}\" \/tmp\/egg || { echo \"Failed to download config files\"; exit 1; }\nif [ ! -f \/tmp\/egg\/start.sh ] || [ ! -d \/tmp\/egg\/nginx ] || [ ! -d \/tmp\/egg\/php-fpm ]; then\n    echo \"Config files are missing from ${REPO} (empty repo or wrong default branch?)\"\n    exit 1\nfi\n\n# Config files are replaced on every (re)install\ncp -r \/tmp\/egg\/nginx \/tmp\/egg\/php-fpm \/mnt\/server\/ \\\n    && cp \/tmp\/egg\/start.sh \/mnt\/server\/start.sh \\\n    && chmod +x \/mnt\/server\/start.sh \\\n    || { echo \"Failed to copy config files\"; exit 1; }\n# Left behind by older versions of this egg, it stops nginx from starting\nrm -f \/mnt\/server\/nginx\/conf.d\/nextcloud.conf\nmkdir -p \/mnt\/server\/webroot \/mnt\/server\/tmp \/mnt\/server\/logs\necho \"${EGG_VERSION}\" > \/mnt\/server\/.egg-version\necho \"Installed Nginx Webhost egg v${EGG_VERSION} config files\"\n\ncd \/mnt\/server\/webroot || exit 1\n\n# A default landing page (this egg's or an older egg's) doesn't count as a website\nif [ \"$(ls -A)\" = \"index.php\" ] && grep -qE 'Web server is running<\/h1>|Webserver Correctly Installed' index.php; then\n    rm -f index.php\nfi\n\nseed_default_page() {\n    if [ -z \"$(ls -A)\" ]; then\n        cp \/tmp\/egg\/webroot\/index.php .\/\n    fi\n}\n\n# WordPress\nif is_true \"${WORDPRESS}\"; then\n    if [ -f wp-load.php ]; then\n        echo \"WordPress is already installed, leaving it alone.\"\n    elif [ -n \"$(ls -A)\" ]; then\n        echo \"webroot already has files, not installing WordPress over them.\"\n    else\n        echo \"Installing WordPress...\"\n        # Unpack outside webroot so a broken download never leaves files behind in it\n        WP_TMP=\/mnt\/server\/.wordpress-download\n        rm -rf \"${WP_TMP}\" && mkdir -p \"${WP_TMP}\"\n        if ! curl -fsSL https:\/\/wordpress.org\/latest.tar.gz | tar xz -C \"${WP_TMP}\" || [ ! -f \"${WP_TMP}\/wordpress\/wp-load.php\" ]; then\n            rm -rf \"${WP_TMP}\"\n            echo \"Failed to download WordPress\"\n            exit 1\n        fi\n        cp -a \"${WP_TMP}\/wordpress\/.\" . && rm -rf \"${WP_TMP}\"\n        echo \"WordPress installed. Finish setup at http:\/\/ip:port\/wp-admin\"\n    fi\n    exit 0\nfi\n\nif is_true \"${USER_UPLOAD}\"; then\n    seed_default_page\n    echo \"User Uploaded Files is on, skipping website setup. Upload your files into webroot.\"\n    exit 0\nfi\n\nif [ -z \"${GIT_ADDRESS}\" ]; then\n    seed_default_page\n    echo \"Install complete. No Git Repo Address set, upload your website into webroot.\"\n    exit 0\nfi\n\n# Git\ncase \"${GIT_ADDRESS}\" in\n    *.git) ;;\n    *) GIT_ADDRESS=\"${GIT_ADDRESS}.git\" ;;\nesac\n\nif [ -n \"${USERNAME}\" ] && [ -n \"${ACCESS_TOKEN}\" ]; then\n    GIT_ADDRESS=\"https:\/\/${USERNAME}:${ACCESS_TOKEN}@${GIT_ADDRESS#*:\/\/}\"\nfi\n\nif [ -n \"$(ls -A)\" ]; then\n    if [ -d .git ]; then\n        if [ \"$(strip_auth \"$(git config --get remote.origin.url)\")\" = \"$(strip_auth \"${GIT_ADDRESS}\")\" ]; then\n            echo \"Pulling latest website files from git\"\n            # Picks up a changed Git Username\/Access Token\n            git remote set-url origin \"${GIT_ADDRESS}\"\n            git pull --ff-only || echo \"git pull failed, keeping the current files.\"\n        else\n            echo \"webroot is a clone of a different git repo, leaving it alone.\"\n        fi\n    else\n        echo \"webroot already has files that aren't from git, leaving them alone.\"\n    fi\nelse\n    echo \"Cloning website files from git\"\n    if [ -n \"${BRANCH}\" ]; then\n        git clone --single-branch --branch \"${BRANCH}\" \"${GIT_ADDRESS}\" . || { echo \"git clone failed, check Git Repo Address, Git Branch and credentials\"; exit 1; }\n    else\n        git clone \"${GIT_ADDRESS}\" . || { echo \"git clone failed, check Git Repo Address and credentials\"; exit 1; }\n    fi\nfi\n\necho \"Install complete. Visit http:\/\/ip:port\/\"\n",
+            "script": "#!\/bin\/ash\n# Nginx Webhost installer: installs the nginx\/PHP config and sets up the website files.\n\n# Bump this whenever the egg or the repo's config files change. Servers compare it with\n# the egg on GitHub at startup and show an update notice in the console.\nEGG_VERSION=\"1.0.6\"\n\nREPO=\"https:\/\/github.com\/Rustix-Development\/pterodactyl-nginx-egg\"\n\nis_true() { [ \"$1\" = \"1\" ] || [ \"$1\" = \"true\" ]; }\n\n# Drop user:token@ from a git URL so a changed token still counts as the same repo\nstrip_auth() { printf '%s' \"$1\" | sed -E 's#^([a-z]+:\/\/)[^\/@]*@#\\1#'; }\n\ntrap 'rm -rf \/tmp\/egg' EXIT\n\n# The install container has a terminal nobody types into: never wait for a git password\nexport GIT_TERMINAL_PROMPT=0\n\ncd \/mnt\/server || exit 1\napk add --no-cache git curl || { echo \"Failed to install git and curl\"; exit 1; }\n# Server files belong to the server user, not root; let git work on them anyway\ngit config --global --add safe.directory '*'\n\necho \"Downloading config files from ${REPO}\"\nrm -rf \/tmp\/egg\ngit clone --depth 1 \"${REPO}\" \/tmp\/egg || { echo \"Failed to download config files\"; exit 1; }\nif [ ! -f \/tmp\/egg\/start.sh ] || [ ! -d \/tmp\/egg\/nginx ] || [ ! -d \/tmp\/egg\/php-fpm ]; then\n    echo \"Config files are missing from ${REPO} (empty repo or wrong default branch?)\"\n    exit 1\nfi\n\n# Config files are replaced on every (re)install\ncp -r \/tmp\/egg\/nginx \/tmp\/egg\/php-fpm \/mnt\/server\/ \\\n    && cp \/tmp\/egg\/start.sh \/mnt\/server\/start.sh \\\n    && chmod +x \/mnt\/server\/start.sh \\\n    || { echo \"Failed to copy config files\"; exit 1; }\n# Left behind by older versions of this egg, it stops nginx from starting\nrm -f \/mnt\/server\/nginx\/conf.d\/nextcloud.conf\nmkdir -p \/mnt\/server\/webroot \/mnt\/server\/tmp \/mnt\/server\/logs\necho \"${EGG_VERSION}\" > \/mnt\/server\/.egg-version\necho \"Installed Nginx Webhost egg v${EGG_VERSION} config files\"\n\ncd \/mnt\/server\/webroot || exit 1\n\n# A default landing page (this egg's or an older egg's) doesn't count as a website\nif [ \"$(ls -A)\" = \"index.php\" ] && grep -qE 'Web server is running<\/h1>|Webserver Correctly Installed' index.php; then\n    rm -f index.php\nfi\n\nseed_default_page() {\n    if [ -z \"$(ls -A)\" ]; then\n        cp \/tmp\/egg\/webroot\/index.php .\/\n    fi\n}\n\n# WordPress\nif is_true \"${WORDPRESS}\"; then\n    if [ -f wp-load.php ]; then\n        echo \"WordPress is already installed, leaving it alone.\"\n    elif [ -n \"$(ls -A)\" ]; then\n        echo \"webroot already has files, not installing WordPress over them.\"\n    else\n        echo \"Installing WordPress...\"\n        # Unpack outside webroot so a broken download never leaves files behind in it\n        WP_TMP=\/mnt\/server\/.wordpress-download\n        rm -rf \"${WP_TMP}\" && mkdir -p \"${WP_TMP}\"\n        if ! curl -fsSL https:\/\/wordpress.org\/latest.tar.gz | tar xz -C \"${WP_TMP}\" || [ ! -f \"${WP_TMP}\/wordpress\/wp-load.php\" ]; then\n            rm -rf \"${WP_TMP}\"\n            echo \"Failed to download WordPress\"\n            exit 1\n        fi\n        cp -a \"${WP_TMP}\/wordpress\/.\" . && rm -rf \"${WP_TMP}\"\n        echo \"WordPress installed. Finish setup at http:\/\/ip:port\/wp-admin\"\n    fi\n    exit 0\nfi\n\nif is_true \"${USER_UPLOAD}\"; then\n    seed_default_page\n    echo \"User Uploaded Files is on, skipping website setup. Upload your files into webroot.\"\n    exit 0\nfi\n\nif [ -z \"${GIT_ADDRESS}\" ]; then\n    seed_default_page\n    echo \"Install complete. No Git Repo Address set, upload your website into webroot.\"\n    exit 0\nfi\n\n# Git\ncase \"${GIT_ADDRESS}\" in\n    *.git) ;;\n    *) GIT_ADDRESS=\"${GIT_ADDRESS}.git\" ;;\nesac\n\nif [ -n \"${USERNAME}\" ] && [ -n \"${ACCESS_TOKEN}\" ]; then\n    GIT_ADDRESS=\"https:\/\/${USERNAME}:${ACCESS_TOKEN}@${GIT_ADDRESS#*:\/\/}\"\nfi\n\nif [ -n \"$(ls -A)\" ]; then\n    if [ -d .git ]; then\n        if [ \"$(strip_auth \"$(git config --get remote.origin.url)\")\" = \"$(strip_auth \"${GIT_ADDRESS}\")\" ]; then\n            echo \"Pulling latest website files from git\"\n            # Picks up a changed Git Username\/Access Token\n            git remote set-url origin \"${GIT_ADDRESS}\"\n            git pull --ff-only || echo \"git pull failed, keeping the current files.\"\n        else\n            echo \"webroot is a clone of a different git repo, leaving it alone.\"\n        fi\n    else\n        echo \"webroot already has files that aren't from git, leaving them alone.\"\n    fi\nelse\n    echo \"Cloning website files from git\"\n    if [ -n \"${BRANCH}\" ]; then\n        git clone --single-branch --branch \"${BRANCH}\" \"${GIT_ADDRESS}\" . || { echo \"git clone failed, check Git Repo Address, Git Branch and credentials\"; exit 1; }\n    else\n        git clone \"${GIT_ADDRESS}\" . || { echo \"git clone failed, check Git Repo Address and credentials\"; exit 1; }\n    fi\nfi\n\necho \"Install complete. Visit http:\/\/ip:port\/\"\n",
             "container": "alpine:3.24",
             "entrypoint": "ash"
         }
     },
     "variables": [
         {
-            "name": "Startup Command",
-            "description": "The command to startup the egg \r\n(Do not change if you do not know what you are doing!)",
-            "env_variable": "STARTUP_CMD",
-            "default_value": ".\/start.sh",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Wordpress",
-            "description": "Enable or disable Wordpress\r\n\r\n0 = false (default)\r\n1 = true",
-            "env_variable": "WORDPRESS",
-            "default_value": "0",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|boolean",
-            "field_type": "text"
-        },
-        {
-            "name": "Composer modules",
-            "description": "Composer packages to install into webroot, separated by spaces, e.g. \"phpmailer\/phpmailer vlucas\/phpdotenv\". Pin a version with vendor\/package:^6.0.\n\nEach package is added once and then kept at that version; on every start the server runs composer install so vendor\/ matches composer.lock.",
-            "env_variable": "COMPOSER_MODULES",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Git Repo Address",
-            "description": "Git repo to clone your website from.\n\nI.E. https:\/\/github.com\/your-name\/your-site\n\nLeave blank to upload files yourself.",
-            "env_variable": "GIT_ADDRESS",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Git Branch",
-            "description": "What branch to pull from github.\r\n\r\nDefault is blank to pull the repo default branch",
-            "env_variable": "BRANCH",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Auto Update",
-            "description": "Pull the latest files from the Git repo on every start.\n\n0 = false (default)\n1 = true",
-            "env_variable": "AUTO_UPDATE",
-            "default_value": "0",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|boolean",
-            "field_type": "text"
-        },
-        {
-            "name": "User Uploaded Files",
-            "description": "Skip all the install stuff if you are letting a user upload files.\r\n\r\n0 = false (default)\r\n1 = true",
-            "env_variable": "USER_UPLOAD",
-            "default_value": "0",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|boolean",
-            "field_type": "text"
-        },
-        {
-            "name": "Root Folder",
-            "description": "Folder inside webroot to serve at your domain's root, a name or a path: <folder> serves webroot\/<folder> at \/, dev\/main serves webroot\/dev\/main. The other folders in webroot are still served at their own path (webroot\/blog at \/blog\/), and links to \/<folder>\/... redirect to \/...\n\nLeave blank to serve webroot as is (default).",
-            "env_variable": "ROOT_FOLDER",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string|max:255|regex:\/^\\\/?[A-Za-z0-9][A-Za-z0-9._-]*(\\\/[A-Za-z0-9][A-Za-z0-9._-]*)*\\\/?$\/",
-            "field_type": "text"
-        },
-        {
-            "name": "404 Page",
-            "description": "Page to show when a page doesn't exist, e.g. 404.html or errors\/404.php (HTML or PHP), from your site's root (webroot, or the Root Folder if set). Visitors get it with a 404 status.\n\nLeave blank to send missing pages to index.php as before (default, needed for WordPress and other apps that show their own 404).",
-            "env_variable": "ERROR_404_PAGE",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string|max:255|regex:\/^\\\/?[A-Za-z0-9][A-Za-z0-9._-]*(\\\/[A-Za-z0-9][A-Za-z0-9._-]*)*$\/",
-            "field_type": "text"
-        },
-        {
-            "name": "Update Check",
-            "description": "Check GitHub on startup and say in the console when the egg or the Docker image has an update.\n\n0 = false\n1 = true (default)",
-            "env_variable": "UPDATE_CHECK",
-            "default_value": "1",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|boolean",
-            "field_type": "text"
-        },
-        {
-            "name": "Git Username",
-            "description": "Username to auth with git.",
-            "env_variable": "USERNAME",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Git Access Token",
-            "description": "Password to use with git.\r\n\r\nIt's best practice to use a Personal Access Token.\r\nhttps:\/\/github.com\/settings\/tokens\r\nhttps:\/\/gitlab.com\/-\/profile\/personal_access_tokens",
-            "env_variable": "ACCESS_TOKEN",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "SMTP Host",
-            "description": "SMTP server address used to send mail from this site.\r\n\r\nDefault works for Resend (recommended \u2014 works from any IP, no dedicated mailbox needed). Set to smtp.gmail.com for Gmail \/ Google Workspace instead.",
-            "env_variable": "SMTP_HOST",
-            "default_value": "smtp.resend.com",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "SMTP Port",
-            "description": "SMTP port. 465 (implicit TLS) is correct for Resend. Use 587 (STARTTLS) for Gmail \/ Google Workspace.",
-            "env_variable": "SMTP_PORT",
-            "default_value": "465",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|integer",
-            "field_type": "text"
-        },
-        {
-            "name": "SMTP Username",
-            "description": "The account that sends the mail.\r\n\r\nFor Resend this is always literally \"resend\" (not an email address). For Gmail\/Workspace this is the full mailbox address, e.g. info@yoursite.com.",
-            "env_variable": "SMTP_USERNAME",
-            "default_value": "resend",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "SMTP Password",
-            "description": "For Resend: your Resend API key (starts with \"re_\").\r\n\r\nFor Gmail \/ Google Workspace: an App Password for the mailbox above, no spaces \u2014 requires 2-Step Verification first: https:\/\/myaccount.google.com\/apppasswords. Never a normal account password.",
-            "env_variable": "SMTP_PASSWORD",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Mail From Email",
-            "description": "The address mail appears to come FROM, e.g. noreply@yoursite.com. Required for Resend (must be on a domain you've verified with them). For Gmail\/Workspace, leave blank to default to SMTP Username.",
-            "env_variable": "MAIL_FROM_EMAIL",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Mail From Name",
-            "description": "The display name shown as the sender on outgoing mail, e.g. \"My Site\".\r\n\r\nLeave blank to fall back to \"{Site Name} Contact Form\".",
-            "env_variable": "MAIL_FROM_NAME",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Mail To Email",
-            "description": "Where contact form submissions actually land, usually the office inbox for this site.",
-            "env_variable": "MAIL_TO_EMAIL",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Site Name",
+            "name": "Site \u00b7 Name",
             "description": "Short name for this site, used in the contact form's email subject line and internal error logs, e.g. \"My Site\".\r\n\r\nPurely cosmetic, doesn't need to match anything else.",
             "env_variable": "SITE_NAME",
             "default_value": "Website",
@@ -231,7 +41,7 @@
             "field_type": "text"
         },
         {
-            "name": "Site URL",
+            "name": "Site \u00b7 URL",
             "description": "The public URL this site is reached at, no trailing slash, e.g. \"https:\/\/example.com\".\r\n\r\nUsed to build password reset links, unsubscribe links, email notification links, and the Discord OAuth redirect URL. Leave blank to fall back to the value baked into config.php.",
             "env_variable": "SITE_URL",
             "default_value": "",
@@ -241,8 +51,118 @@
             "field_type": "text"
         },
         {
-            "name": "Discord Client ID",
-            "description": "OAuth2 Client ID from your app at https:\/\/discord.com\/developers\/applications.\r\n\r\nLeave both this and Discord Client Secret blank to keep Discord login disabled.",
+            "name": "Site \u00b7 Root Folder",
+            "description": "Folder inside webroot to serve at your domain's root, a name or a path: <folder> serves webroot\/<folder> at \/, dev\/main serves webroot\/dev\/main. The other folders in webroot are still served at their own path (webroot\/blog at \/blog\/), and links to \/<folder>\/... redirect to \/...\n\nLeave blank to serve webroot as is (default).",
+            "env_variable": "ROOT_FOLDER",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:255|regex:\/^\\\/?[A-Za-z0-9][A-Za-z0-9._-]*(\\\/[A-Za-z0-9][A-Za-z0-9._-]*)*\\\/?$\/",
+            "field_type": "text"
+        },
+        {
+            "name": "Site \u00b7 404 Page",
+            "description": "Page to show when a page doesn't exist, e.g. 404.html or errors\/404.php (HTML or PHP), from your site's root (webroot, or Website \u00b7 Root Folder if set). Visitors get it with a 404 status.\n\nLeave blank to send missing pages to index.php as before (default, needed for WordPress and other apps that show their own 404).",
+            "env_variable": "ERROR_404_PAGE",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:255|regex:\/^\\\/?[A-Za-z0-9][A-Za-z0-9._-]*(\\\/[A-Za-z0-9][A-Za-z0-9._-]*)*$\/",
+            "field_type": "text"
+        },
+        {
+            "name": "Setup \u00b7 WordPress",
+            "description": "Enable or disable Wordpress\r\n\r\n0 = false (default)\r\n1 = true",
+            "env_variable": "WORDPRESS",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Setup \u00b7 Composer Modules",
+            "description": "Composer packages to install into webroot, separated by spaces, e.g. \"phpmailer\/phpmailer vlucas\/phpdotenv\". Pin a version with vendor\/package:^6.0.\n\nEach package is added once and then kept at that version; on every start the server runs composer install so vendor\/ matches composer.lock.",
+            "env_variable": "COMPOSER_MODULES",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Mail \u00b7 SMTP Host",
+            "description": "SMTP server address used to send mail from this site.\r\n\r\nDefault works for Resend (recommended \u2014 works from any IP, no dedicated mailbox needed). Set to smtp.gmail.com for Gmail \/ Google Workspace instead.",
+            "env_variable": "SMTP_HOST",
+            "default_value": "smtp.resend.com",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Mail \u00b7 SMTP Port",
+            "description": "SMTP port. 465 (implicit TLS) is correct for Resend. Use 587 (STARTTLS) for Gmail \/ Google Workspace.",
+            "env_variable": "SMTP_PORT",
+            "default_value": "465",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|integer",
+            "field_type": "text"
+        },
+        {
+            "name": "Mail \u00b7 SMTP Username",
+            "description": "The account that sends the mail.\r\n\r\nFor Resend this is always literally \"resend\" (not an email address). For Gmail\/Workspace this is the full mailbox address, e.g. info@yoursite.com.",
+            "env_variable": "SMTP_USERNAME",
+            "default_value": "resend",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Mail \u00b7 SMTP Password",
+            "description": "For Resend: your Resend API key (starts with \"re_\").\r\n\r\nFor Gmail \/ Google Workspace: an App Password for the mailbox above, no spaces \u2014 requires 2-Step Verification first: https:\/\/myaccount.google.com\/apppasswords. Never a normal account password.",
+            "env_variable": "SMTP_PASSWORD",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Mail \u00b7 From Email",
+            "description": "The address mail appears to come FROM, e.g. noreply@yoursite.com. Required for Resend (must be on a domain you've verified with them). For Gmail\/Workspace, leave blank to default to SMTP Username.",
+            "env_variable": "MAIL_FROM_EMAIL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Mail \u00b7 From Name",
+            "description": "The display name shown as the sender on outgoing mail, e.g. \"My Site\".\r\n\r\nLeave blank to fall back to \"{Site \u00b7 Name} Contact Form\".",
+            "env_variable": "MAIL_FROM_NAME",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Mail \u00b7 To Email",
+            "description": "Where contact form submissions actually land, usually the office inbox for this site.",
+            "env_variable": "MAIL_TO_EMAIL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Login \u00b7 Discord Client ID",
+            "description": "OAuth2 Client ID from your app at https:\/\/discord.com\/developers\/applications.\r\n\r\nLeave both this and Login \u00b7 Discord Client Secret blank to keep Discord login disabled.",
             "env_variable": "DISCORD_CLIENT_ID",
             "default_value": "",
             "user_viewable": true,
@@ -251,8 +171,8 @@
             "field_type": "text"
         },
         {
-            "name": "Discord Client Secret",
-            "description": "OAuth2 Client Secret from the same Discord application (OAuth2 tab). Treat this like a password.\r\n\r\nAfter setting this, add this EXACT redirect URL in that app's OAuth2 settings: {Site URL}\/discord-callback\/",
+            "name": "Login \u00b7 Discord Client Secret",
+            "description": "OAuth2 Client Secret from the same Discord application (OAuth2 tab). Treat this like a password.\r\n\r\nAfter setting this, add this EXACT redirect URL in that app's OAuth2 settings: {Site \u00b7 URL}\/discord-callback\/",
             "env_variable": "DISCORD_CLIENT_SECRET",
             "default_value": "",
             "user_viewable": true,
@@ -261,7 +181,57 @@
             "field_type": "text"
         },
         {
-            "name": "Database Connection String",
+            "name": "Login \u00b7 Google Client ID",
+            "description": "OAuth2 Client ID from a Web application client at https:\/\/console.cloud.google.com\/apis\/credentials.\r\n\r\nLeave both this and Login \u00b7 Google Client Secret blank to keep Google login disabled. Unlike Discord, Google sign-in never creates a new account \u2014 it only works for someone whose Google email already matches an existing staff account.",
+            "env_variable": "GOOGLE_CLIENT_ID",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Login \u00b7 Google Client Secret",
+            "description": "OAuth2 Client Secret from the same Google Cloud OAuth client. Treat this like a password.\r\n\r\nAfter setting this, add this EXACT redirect URL as an \"Authorized redirect URI\" on that client: {Site \u00b7 URL}\/google-callback\/",
+            "env_variable": "GOOGLE_CLIENT_SECRET",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "Security \u00b7 Turnstile Site Key",
+            "description": "Cloudflare Turnstile site key (public, starts with 0x). Cloudflare dashboard \u2192 Turnstile \u2192 your widget. Forms skip the bot check until both Turnstile keys are set.",
+            "env_variable": "TURNSTILE_SITE_KEY",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Security \u00b7 Turnstile Secret Key",
+            "description": "Cloudflare Turnstile secret key from the same widget. Treat this like a password.",
+            "env_variable": "TURNSTILE_SECRET_KEY",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Analytics \u00b7 Google Analytics ID",
+            "description": "Google Analytics 4 Measurement ID, e.g. G-XXXXXXXXXX (Admin \u2192 Data streams \u2192 your web stream). Leave blank for no analytics.",
+            "env_variable": "GA_MEASUREMENT_ID",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:20",
+            "field_type": "text"
+        },
+        {
+            "name": "Database \u00b7 Connection String",
             "description": "Paste your database connection string here \u2014 same format the panel's own DB_CONNECTION_STRING auto-injects (e.g. \"jdbc:mysql:\/\/user:pass@host:port\/dbname\"), or a plain \"mysql:\/\/user:pass@host:port\/dbname\", or a PDO-style \"mysql:host=X;port=Y;dbname=Z;user=U;password=P\". Leave blank to rely on the panel's automatic database attachment instead.",
             "env_variable": "DB_CONNECTION_STRING",
             "default_value": "",
@@ -271,23 +241,23 @@
             "field_type": "text"
         },
         {
-            "name": "Google Client ID",
-            "description": "OAuth2 Client ID from a Web application client at https:\/\/console.cloud.google.com\/apis\/credentials.\r\n\r\nLeave both this and Google Client Secret blank to keep Google login disabled. Unlike Discord, Google sign-in never creates a new account \u2014 it only works for someone whose Google email already matches an existing staff account.",
-            "env_variable": "GOOGLE_CLIENT_ID",
-            "default_value": "",
+            "name": "Egg \u00b7 Update Check",
+            "description": "Check GitHub on startup and say in the console when the egg or the Docker image has an update.\n\n0 = false\n1 = true (default)",
+            "env_variable": "UPDATE_CHECK",
+            "default_value": "1",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "nullable|string",
+            "rules": "required|boolean",
             "field_type": "text"
         },
         {
-            "name": "Google Client Secret",
-            "description": "OAuth2 Client Secret from the same Google Cloud OAuth client. Treat this like a password.\r\n\r\nAfter setting this, add this EXACT redirect URL as an \"Authorized redirect URI\" on that client: {Site URL}\/google-callback\/",
-            "env_variable": "GOOGLE_CLIENT_SECRET",
-            "default_value": "",
+            "name": "Egg \u00b7 Startup Command",
+            "description": "The command to startup the egg \r\n(Do not change if you do not know what you are doing!)",
+            "env_variable": "STARTUP_CMD",
+            "default_value": ".\/start.sh",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "nullable|string",
+            "rules": "required|string",
             "field_type": "text"
         }
     ]

@@ -11,18 +11,29 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Validate the egg
+      - name: Validate the eggs
         run: |
-          jq -e '.meta.version == "PTDL_v2"' egg-nginx-webhost.json >/dev/null
-          # tr: the panel saves the install script with Windows line endings
-          version=$(jq -r '.scripts.installation.script' egg-nginx-webhost.json \
-            | tr -d '\r' \
-            | sed -n 's/^EGG_VERSION="\([^"]*\)"$/\1/p' | head -n 1)
-          if [ -z "${version}" ]; then
-            echo "::error::EGG_VERSION not found in the egg's install script"
+          for egg in egg-nginx-webhost.json egg-nginx-webhost-git.json; do
+            jq -e '.meta.version == "PTDL_v2"' "${egg}" >/dev/null
+            # tr: the panel saves the install script with Windows line endings
+            version=$(jq -r '.scripts.installation.script' "${egg}" \
+              | tr -d '\r' \
+              | sed -n 's/^EGG_VERSION="\([^"]*\)"$/\1/p' | head -n 1)
+            if [ -z "${version}" ]; then
+              echo "::error::EGG_VERSION not found in ${egg}'s install script"
+              exit 1
+            fi
+            echo "${egg}: version ${version}"
+          done
+
+          # The two eggs only differ in name, description, update URL and the WordPress/Git
+          # variables; everything else has to stay the same in both
+          shared='{scripts, docker_images, startup, config, features, file_denylist,
+            variables: [.variables[] | select(.env_variable | test("^(WORDPRESS|GIT_ADDRESS|BRANCH|USERNAME|ACCESS_TOKEN|AUTO_UPDATE)$") | not)]}'
+          if ! diff <(jq -S "${shared}" egg-nginx-webhost.json) <(jq -S "${shared}" egg-nginx-webhost-git.json); then
+            echo "::error::egg-nginx-webhost.json and egg-nginx-webhost-git.json differ in a part they should share (shown above)"
             exit 1
           fi
-          echo "Egg version ${version}"
 
       - uses: docker/setup-buildx-action@v3
 

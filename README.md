@@ -4,16 +4,21 @@
 [![Build images](https://github.com/Rustix-Development/pterodactyl-nginx-egg/actions/workflows/build-images.yml/badge.svg)](https://github.com/Rustix-Development/pterodactyl-nginx-egg/actions/workflows/build-images.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A [Pterodactyl](https://pterodactyl.io) egg for hosting PHP and static websites with
-**nginx 1.30** and **PHP 8.3 / 8.4 / 8.5** on PHP-FPM.
+[Pterodactyl](https://pterodactyl.io) eggs for hosting PHP and static websites with
+**nginx 1.30** and **PHP 8.3 / 8.4 / 8.5** on PHP-FPM. There are two, pick one per server:
 
-- **Upload or deploy from Git**: upload files into `webroot/`, or clone a Git repo
-  (public or private) and optionally pull it on every start
-- **WordPress**: turn on *Wordpress* when creating the server and it's downloaded for you
-- **Composer**: list packages in *Composer modules* and they're installed into `webroot/`
-- **Site variables**: SMTP / mail, site name and URL, Discord and Google OAuth and a database
-  connection string are passed to PHP, so your code reads them with `getenv()` instead of
-  hardcoding them
+| Egg | File | For |
+|-----|------|-----|
+| **Nginx Webhost** | `egg-nginx-webhost-<version>.json` | You upload the site yourself (SFTP or the file manager), or install WordPress |
+| **Nginx Webhost (Git)** | `egg-nginx-webhost-git-<version>.json` | The site is cloned from a Git repo (public or private), optionally pulled on every start |
+
+Both use the same image, config files and startup script.
+
+- **WordPress** (Nginx Webhost): turn on *Setup · WordPress* when creating the server and it's downloaded for you
+- **Composer**: list packages in *Setup · Composer Modules* and they're installed into `webroot/`
+- **Site variables**: site name and URL, Google Analytics, SMTP / mail, Cloudflare Turnstile,
+  Discord and Google OAuth and a database connection string are passed to PHP, so your code
+  reads them with `getenv()` instead of hardcoding them
 - **Update check**: the console says when the egg or the Docker image has an update
 - **Maintained images**: Debian based with PHP from packages.sury.org, `amd64` and `arm64`, rebuilt weekly for nginx and PHP
   security fixes
@@ -27,33 +32,39 @@ A [Pterodactyl](https://pterodactyl.io) egg for hosting PHP and static websites 
 
 ## Install
 
-1. Download `egg-nginx-webhost-<version>.json` from the
-   [latest release](https://github.com/Rustix-Development/pterodactyl-nginx-egg/releases/latest).
-2. In the panel: **Admin → Nests → Import Egg**, upload it into the nest you want.
+1. Download `egg-nginx-webhost-<version>.json`, `egg-nginx-webhost-git-<version>.json` or
+   both from the [latest release](https://github.com/Rustix-Development/pterodactyl-nginx-egg/releases/latest).
+2. In the panel: **Admin → Nests → Import Egg**, upload each one into the nest you want.
 3. Create a server with the egg and pick a PHP version under **Docker Image**.
 4. Once it has installed, start it and visit `http://<node-ip>:<port>`. You should see the
-   "Web server is running" page; replace it by uploading your site into `webroot/`.
+   "Web server is running" page (or your site, with the Git egg); with Nginx Webhost, replace
+   it by uploading your site into `webroot/`.
 
 The server listens on its primary allocation. To serve a domain over HTTPS, put a reverse
 proxy (nginx, Caddy, Cloudflare, ...) in front of that port.
 
 ## Variables
 
-All variables can be changed later under the server's **Startup** tab. The site variables
-only reach your PHP code; the egg itself doesn't use them, so leave the ones you don't need
-blank.
+All variables can be changed later under the server's **Startup** tab. Each name starts
+with its section (*Site*, *Git*, *Setup*, *Mail*, *Login*, *Security*, *Analytics*,
+*Database*, *Egg*) so they stay grouped in the panel. The site variables only reach your PHP code;
+the egg itself doesn't use them, so leave the ones you don't need blank.
 
-### Website
+### Site and setup
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| Wordpress (`WORDPRESS`) | `0` | Install WordPress into an empty `webroot/`. Finish setup at `/wp-admin` |
-| Composer modules (`COMPOSER_MODULES`) | | Space separated packages, e.g. `phpmailer/phpmailer vlucas/phpdotenv`. Pin a version with `vendor/package:^6.0` |
-| Root Folder (`ROOT_FOLDER`) | | Folder in `webroot/` to serve at your domain's root, see [below](#serving-a-folder-at-the-root). Blank serves `webroot/` as is |
-| 404 Page (`ERROR_404_PAGE`) | | Page to show for missing pages, see [below](#custom-404-page). Blank keeps sending them to `index.php` |
-| User Uploaded Files (`USER_UPLOAD`) | `0` | Skip the Git setup, you upload the files yourself |
-| Update Check (`UPDATE_CHECK`) | `1` | Say in the console when the egg or the Docker image has an update |
-| Startup Command (`STARTUP_CMD`) | `./start.sh` | Leave as is unless you know you need to change it |
+| Site · Root Folder (`ROOT_FOLDER`) | | Folder in `webroot/` to serve at your domain's root, see [below](#serving-a-folder-at-the-root). Blank serves `webroot/` as is |
+| Site · 404 Page (`ERROR_404_PAGE`) | | Page to show for missing pages, see [below](#custom-404-page). Blank keeps sending them to `index.php` |
+| Setup · WordPress (`WORDPRESS`) | `0` | Nginx Webhost only. Install WordPress into an empty `webroot/`. Finish setup at `/wp-admin` |
+| Setup · Composer Modules (`COMPOSER_MODULES`) | | Space separated packages, e.g. `phpmailer/phpmailer vlucas/phpdotenv`. Pin a version with `vendor/package:^6.0` |
+
+### Egg
+
+| Variable | Default | What it does |
+|----------|---------|--------------|
+| Egg · Update Check (`UPDATE_CHECK`) | `1` | Say in the console when the egg or the Docker image has an update |
+| Egg · Startup Command (`STARTUP_CMD`) | `./start.sh` | Leave as is unless you know you need to change it |
 
 Each Composer package is added once and then kept at that version. On every start
 `composer install` keeps `vendor/` in line with `composer.lock`.
@@ -103,31 +114,33 @@ path is from your site's root: `webroot/`, or the **Root Folder** if you set one
 - If the page doesn't exist, visitors get nginx's plain 404 and the console says so.
 - Needs a **Reinstall** first on servers installed before the egg had this option.
 
-### Git
+### Git (Nginx Webhost (Git) only)
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| Git Repo Address (`GIT_ADDRESS`) | | Repo to clone your site from, e.g. `https://github.com/you/your-site` |
-| Git Branch (`BRANCH`) | | Branch to clone; blank uses the repo's default branch |
-| Auto Update (`AUTO_UPDATE`) | `0` | `git pull` on every start |
-| Git Username (`USERNAME`) | | For private repos |
-| Git Access Token (`ACCESS_TOKEN`) | | For private repos; use a personal access token, not your password |
+| Git · Repo Address (`GIT_ADDRESS`) | | Repo to clone your site from, e.g. `https://github.com/you/your-site` |
+| Git · Branch (`BRANCH`) | | Branch to clone; blank uses the repo's default branch |
+| Git · Username (`USERNAME`) | | For private repos |
+| Git · Access Token (`ACCESS_TOKEN`) | | For private repos; use a personal access token, not your password |
+| Git · Auto Update (`AUTO_UPDATE`) | `0` | `git pull` on every start |
 
 The repo is only cloned into an empty `webroot/`. If `webroot/` is already a clone of the
 same repo, a reinstall pulls it; any other files are left alone.
 
 ### Site variables (read with `getenv()`)
 
-| Variable | Default | Typical use |
-|----------|---------|-------------|
-| `SMTP_HOST`, `SMTP_PORT` | `smtp.resend.com`, `465` | Mail server. For Gmail / Google Workspace use `smtp.gmail.com` and `587` |
-| `SMTP_USERNAME`, `SMTP_PASSWORD` | `resend`, | Mail login. For Resend, the password is your API key; for Gmail, an App Password |
-| `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME` | | Sender address and name |
-| `MAIL_TO_EMAIL` | | Where contact form mail goes |
-| `SITE_NAME`, `SITE_URL` | `Website`, | Your site's name and public URL (no trailing slash) |
-| `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | | Discord OAuth2 login |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | | Google OAuth2 login |
-| `DB_CONNECTION_STRING` | | Database URL, e.g. `mysql://user:pass@host:3306/db` |
+| Section | Variables | Default | Typical use |
+|---------|-----------|---------|-------------|
+| Site | `SITE_NAME`, `SITE_URL` | `Website`, | Your site's name and public URL (no trailing slash) |
+| Mail | `SMTP_HOST`, `SMTP_PORT` | `smtp.resend.com`, `465` | Mail server. For Gmail / Google Workspace use `smtp.gmail.com` and `587` |
+| Mail | `SMTP_USERNAME`, `SMTP_PASSWORD` | `resend`, | Mail login. For Resend, the password is your API key; for Gmail, an App Password |
+| Mail | `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME` | | Sender address and name |
+| Mail | `MAIL_TO_EMAIL` | | Where contact form mail goes |
+| Login | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | | Discord OAuth2 login |
+| Login | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | | Google OAuth2 login |
+| Security | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | | Cloudflare Turnstile bot check on forms |
+| Analytics | `GA_MEASUREMENT_ID` | | Google Analytics 4 Measurement ID, e.g. `G-XXXXXXXXXX` |
+| Database | `DB_CONNECTION_STRING` | | Database URL, e.g. `mysql://user:pass@host:3306/db` |
 
 ```php
 <?php
@@ -169,9 +182,10 @@ only into an empty `webroot/`. Your other website files are kept.
 
 Every time a server starts it checks for updates in the background and says in the console if:
 
-- **the egg has an update**: download `egg-nginx-webhost-<version>.json` from the
+- **the egg has an update**: download `egg-nginx-webhost-<version>.json` (or
+  `egg-nginx-webhost-git-<version>.json` for the Git egg) from the
   [latest release](https://github.com/Rustix-Development/pterodactyl-nginx-egg/releases/latest), then
-  **Admin → Nests → (nest) → Nginx Webhost → Update Egg** with it (not *Import Egg*, that
+  **Admin → Nests → (nest) → the egg → Update Egg** with it (not *Import Egg*, that
   makes a second copy), and **Reinstall** the server.
 - **the Docker image has an update**: restart the server, the panel downloads the latest
   image on every start. If it keeps showing, run
@@ -185,7 +199,7 @@ Every time a server starts it checks for updates in the background and says in t
   egg's images: **Admin → Servers → server → Startup → Docker Image**, pick one of the
   egg's images.
 
-Turn it off per server with the *Update Check* variable.
+Turn it off per server with the *Egg · Update Check* variable.
 
 ## Troubleshooting
 
