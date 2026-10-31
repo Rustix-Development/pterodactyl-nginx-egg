@@ -57,8 +57,16 @@ check_egg_update() {
         log_success "Egg is up to date (v${installed})."
     else
         log_update "Egg update available: ${installed:+v${installed} -> }v${latest}"
-        log_update "  1. Download egg-nginx-webhost-${latest}.json from https://github.com/${EGG_REPO}/releases/latest"
-        log_update "     and upload it in the panel: Admin -> Nests -> (nest) -> Nginx Webhost -> Update Egg"
+        # Only the Git egg has the Git variables
+        if [ -n "${GIT_ADDRESS+set}" ]; then
+            egg_file="egg-nginx-webhost-git-${latest}.json"
+            egg_name="Nginx Webhost (Git)"
+        else
+            egg_file="egg-nginx-webhost-${latest}.json"
+            egg_name="Nginx Webhost"
+        fi
+        log_update "  1. Download ${egg_file} from https://github.com/${EGG_REPO}/releases/latest"
+        log_update "     and upload it in the panel: Admin -> Nests -> (nest) -> ${egg_name} -> Update Egg"
         log_update "  2. This server: Settings -> Reinstall Server. webroot is kept; nginx/, php-fpm/ and start.sh are replaced, so back up any edits to them first."
     fi
 

@@ -1,18 +1,21 @@
 name: Release egg
 
-# Publishes egg-nginx-webhost.json as a GitHub release named after the EGG_VERSION in its
-# install script (e.g. v1.0.0). Bump EGG_VERSION to make a new release.
-# The egg is attached twice: egg-nginx-webhost-<version>.json to download, and
-# egg-nginx-webhost.json, which servers' update checks fetch from the latest release.
+# Publishes the eggs as a GitHub release named after the EGG_VERSION in their install script
+# (e.g. v1.0.0). Bump EGG_VERSION to make a new release. Attached:
+#   egg-nginx-webhost-<version>.json      Nginx Webhost, to download
+#   egg-nginx-webhost-git-<version>.json  Nginx Webhost (Git), to download
+#   egg-nginx-webhost.json                Nginx Webhost again, servers' update checks fetch it
+#                                         from the latest release by this name
 on:
   push:
     branches: [main]
     paths:
       - "egg-nginx-webhost.json"
+      - "egg-nginx-webhost-git.json"
   workflow_dispatch:
     inputs:
       republish:
-        description: "Replace the egg in this version's existing release without bumping EGG_VERSION"
+        description: "Replace the eggs in this version's existing release without bumping EGG_VERSION"
         type: boolean
         default: false
 
@@ -49,48 +52,68 @@ jobs:
           TAG: v${{ steps.egg.outputs.version }}
           REPUBLISH: ${{ inputs.republish }}
         run: |
-          name="egg-nginx-webhost-${TAG#v}.json"
-          versioned="${RUNNER_TEMP}/${name}"
-          cp egg-nginx-webhost.json "${versioned}"
+          assets="${RUNNER_TEMP}/assets"
+          mkdir -p "${assets}"
+          cp egg-nginx-webhost.json "${assets}/egg-nginx-webhost-${TAG#v}.json"
+          cp egg-nginx-webhost-git.json "${assets}/egg-nginx-webhost-git-${TAG#v}.json"
+          cp egg-nginx-webhost.json "${assets}/egg-nginx-webhost.json"
 
           if [ "$(gh release view "${TAG}" --json isDraft --jq .isDraft 2>/dev/null)" = "false" ]; then
-            gh release download "${TAG}" --pattern egg-nginx-webhost.json --output "${RUNNER_TEMP}/released.json"
-            if cmp -s egg-nginx-webhost.json "${RUNNER_TEMP}/released.json"; then
-              # Releases made before the versioned file existed get it added
-              if gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qxF "${name}"; then
-                echo "Release ${TAG} already exists with this egg, nothing to do."
+            released=$(gh release view "${TAG}" --json assets --jq '.assets[].name')
+            changed=""
+            missing=""
+            for file in "${assets}"/*.json; do
+              name=$(basename "${file}")
+              if ! printf '%s\n' "${released}" | grep -qxF "${name}"; then
+                missing="${missing} ${file}"
+                continue
+              fi
+              rm -f "${RUNNER_TEMP}/released.json"
+              gh release download "${TAG}" --pattern "${name}" --output "${RUNNER_TEMP}/released.json"
+              cmp -s "${file}" "${RUNNER_TEMP}/released.json" || changed="${changed} ${name}"
+            done
+
+            if [ -z "${changed}" ]; then
+              # Releases made before a file existed get it added
+              if [ -n "${missing}" ]; then
+                gh release upload "${TAG}" ${missing}
+                echo "Added${missing//${assets}\//} to release ${TAG}."
               else
-                gh release upload "${TAG}" "${versioned}"
-                echo "Added ${name} to release ${TAG}."
+                echo "Release ${TAG} already exists with these eggs, nothing to do."
               fi
               exit 0
             fi
             if [ "${REPUBLISH}" = "true" ]; then
-              # Run by hand with "republish": swap the egg in the existing release. The tag
+              # Run by hand with "republish": swap the eggs in the existing release. The tag
               # stays where it is, release tags are protected and can't be moved
-              gh release upload "${TAG}" egg-nginx-webhost.json "${versioned}" --clobber
-              echo "Replaced the egg in release ${TAG}."
+              gh release upload "${TAG}" "${assets}"/*.json --clobber
+              echo "Replaced the eggs in release ${TAG}."
               exit 0
             fi
-            echo "::error::egg-nginx-webhost.json changed but EGG_VERSION is still ${TAG#v}. Bump EGG_VERSION, or run this workflow by hand with \"republish\" ticked to replace the egg in ${TAG}."
+            echo "::error::${changed# } changed but EGG_VERSION is still ${TAG#v}. Bump EGG_VERSION, or run this workflow by hand with \"republish\" ticked to replace the eggs in ${TAG}."
             exit 1
           fi
           cat > notes.md <<'EOF'
           ## Install
 
-          1. Download `EGG_FILE` below.
+          1. Download the egg you want below:
+             - `EGG_FILE`: **Nginx Webhost**, you upload the site yourself or install WordPress
+             - `GIT_EGG_FILE`: **Nginx Webhost (Git)**, the site is cloned from a Git repo
           2. In the panel: **Admin → Nests → Import Egg**, upload it.
           3. Create a server with the egg, pick a PHP version (Docker Image), and visit `http://ip:port`.
 
           ## Update from an older version
 
-          **Admin → Nests → (nest) → Nginx Webhost → Update Egg** with this file (not Import Egg, that makes a second copy), then **Reinstall** your servers.
+          **Admin → Nests → (nest) → the egg → Update Egg** with its file (not Import Egg, that makes a second copy), then **Reinstall** your servers.
           Reinstalling replaces `nginx/`, `php-fpm/` and `start.sh` on each server (`webroot/` is kept), so back up any edits to them first.
 
-          `egg-nginx-webhost.json` is the same file, kept for the servers' update check.
+          `egg-nginx-webhost.json` is the same file as `EGG_FILE`, kept for the servers' update check.
           EOF
-          sed -i "s/EGG_FILE/${name}/" notes.md
-          gh release create "${TAG}" "${versioned}" egg-nginx-webhost.json \
+          sed -i "s/GIT_EGG_FILE/egg-nginx-webhost-git-${TAG#v}.json/; s/EGG_FILE/egg-nginx-webhost-${TAG#v}.json/g" notes.md
+          gh release create "${TAG}" \
+            "${assets}/egg-nginx-webhost-${TAG#v}.json" \
+            "${assets}/egg-nginx-webhost-git-${TAG#v}.json" \
+            "${assets}/egg-nginx-webhost.json" \
             --title "${TAG}" \
             --notes-file notes.md \
             --target "${GITHUB_SHA}"
