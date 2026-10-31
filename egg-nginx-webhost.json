@@ -31,46 +31,6 @@
     },
     "variables": [
         {
-            "name": "Website \u00b7 Root Folder",
-            "description": "Folder inside webroot to serve at your domain's root, a name or a path: <folder> serves webroot\/<folder> at \/, dev\/main serves webroot\/dev\/main. The other folders in webroot are still served at their own path (webroot\/blog at \/blog\/), and links to \/<folder>\/... redirect to \/...\n\nLeave blank to serve webroot as is (default).",
-            "env_variable": "ROOT_FOLDER",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string|max:255|regex:\/^\\\/?[A-Za-z0-9][A-Za-z0-9._-]*(\\\/[A-Za-z0-9][A-Za-z0-9._-]*)*\\\/?$\/",
-            "field_type": "text"
-        },
-        {
-            "name": "Website \u00b7 404 Page",
-            "description": "Page to show when a page doesn't exist, e.g. 404.html or errors\/404.php (HTML or PHP), from your site's root (webroot, or Website \u00b7 Root Folder if set). Visitors get it with a 404 status.\n\nLeave blank to send missing pages to index.php as before (default, needed for WordPress and other apps that show their own 404).",
-            "env_variable": "ERROR_404_PAGE",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string|max:255|regex:\/^\\\/?[A-Za-z0-9][A-Za-z0-9._-]*(\\\/[A-Za-z0-9][A-Za-z0-9._-]*)*$\/",
-            "field_type": "text"
-        },
-        {
-            "name": "Website \u00b7 Composer Modules",
-            "description": "Composer packages to install into webroot, separated by spaces, e.g. \"phpmailer\/phpmailer vlucas\/phpdotenv\". Pin a version with vendor\/package:^6.0.\n\nEach package is added once and then kept at that version; on every start the server runs composer install so vendor\/ matches composer.lock.",
-            "env_variable": "COMPOSER_MODULES",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
-            "field_type": "text"
-        },
-        {
-            "name": "Website \u00b7 WordPress",
-            "description": "Enable or disable Wordpress\r\n\r\n0 = false (default)\r\n1 = true",
-            "env_variable": "WORDPRESS",
-            "default_value": "0",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|boolean",
-            "field_type": "text"
-        },
-        {
             "name": "Site \u00b7 Name",
             "description": "Short name for this site, used in the contact form's email subject line and internal error logs, e.g. \"My Site\".\r\n\r\nPurely cosmetic, doesn't need to match anything else.",
             "env_variable": "SITE_NAME",
@@ -91,13 +51,43 @@
             "field_type": "text"
         },
         {
-            "name": "Site \u00b7 Google Analytics ID",
-            "description": "Google Analytics 4 Measurement ID, e.g. G-XXXXXXXXXX (Admin \u2192 Data streams \u2192 your web stream). Leave blank for no analytics.",
-            "env_variable": "GA_MEASUREMENT_ID",
+            "name": "Site \u00b7 Root Folder",
+            "description": "Folder inside webroot to serve at your domain's root, a name or a path: <folder> serves webroot\/<folder> at \/, dev\/main serves webroot\/dev\/main. The other folders in webroot are still served at their own path (webroot\/blog at \/blog\/), and links to \/<folder>\/... redirect to \/...\n\nLeave blank to serve webroot as is (default).",
+            "env_variable": "ROOT_FOLDER",
             "default_value": "",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "nullable|string|max:20",
+            "rules": "nullable|string|max:255|regex:\/^\\\/?[A-Za-z0-9][A-Za-z0-9._-]*(\\\/[A-Za-z0-9][A-Za-z0-9._-]*)*\\\/?$\/",
+            "field_type": "text"
+        },
+        {
+            "name": "Site \u00b7 404 Page",
+            "description": "Page to show when a page doesn't exist, e.g. 404.html or errors\/404.php (HTML or PHP), from your site's root (webroot, or Website \u00b7 Root Folder if set). Visitors get it with a 404 status.\n\nLeave blank to send missing pages to index.php as before (default, needed for WordPress and other apps that show their own 404).",
+            "env_variable": "ERROR_404_PAGE",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:255|regex:\/^\\\/?[A-Za-z0-9][A-Za-z0-9._-]*(\\\/[A-Za-z0-9][A-Za-z0-9._-]*)*$\/",
+            "field_type": "text"
+        },
+        {
+            "name": "Setup \u00b7 WordPress",
+            "description": "Enable or disable Wordpress\r\n\r\n0 = false (default)\r\n1 = true",
+            "env_variable": "WORDPRESS",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Setup \u00b7 Composer Modules",
+            "description": "Composer packages to install into webroot, separated by spaces, e.g. \"phpmailer\/phpmailer vlucas\/phpdotenv\". Pin a version with vendor\/package:^6.0.\n\nEach package is added once and then kept at that version; on every start the server runs composer install so vendor\/ matches composer.lock.",
+            "env_variable": "COMPOSER_MODULES",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
             "field_type": "text"
         },
         {
@@ -171,26 +161,6 @@
             "field_type": "text"
         },
         {
-            "name": "Forms \u00b7 Turnstile Site Key",
-            "description": "Cloudflare Turnstile site key (public, starts with 0x). Cloudflare dashboard \u2192 Turnstile \u2192 your widget. Forms skip the bot check until both Turnstile keys are set.",
-            "env_variable": "TURNSTILE_SITE_KEY",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string|max:100",
-            "field_type": "text"
-        },
-        {
-            "name": "Forms \u00b7 Turnstile Secret Key",
-            "description": "Cloudflare Turnstile secret key from the same widget. Treat this like a password.",
-            "env_variable": "TURNSTILE_SECRET_KEY",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string|max:100",
-            "field_type": "text"
-        },
-        {
             "name": "Login \u00b7 Discord Client ID",
             "description": "OAuth2 Client ID from your app at https:\/\/discord.com\/developers\/applications.\r\n\r\nLeave both this and Login \u00b7 Discord Client Secret blank to keep Discord login disabled.",
             "env_variable": "DISCORD_CLIENT_ID",
@@ -231,6 +201,36 @@
             "field_type": "text"
         },
         {
+            "name": "Security \u00b7 Turnstile Site Key",
+            "description": "Cloudflare Turnstile site key (public, starts with 0x). Cloudflare dashboard \u2192 Turnstile \u2192 your widget. Forms skip the bot check until both Turnstile keys are set.",
+            "env_variable": "TURNSTILE_SITE_KEY",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Security \u00b7 Turnstile Secret Key",
+            "description": "Cloudflare Turnstile secret key from the same widget. Treat this like a password.",
+            "env_variable": "TURNSTILE_SECRET_KEY",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Analytics \u00b7 Google Analytics ID",
+            "description": "Google Analytics 4 Measurement ID, e.g. G-XXXXXXXXXX (Admin \u2192 Data streams \u2192 your web stream). Leave blank for no analytics.",
+            "env_variable": "GA_MEASUREMENT_ID",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:20",
+            "field_type": "text"
+        },
+        {
             "name": "Database \u00b7 Connection String",
             "description": "Paste your database connection string here \u2014 same format the panel's own DB_CONNECTION_STRING auto-injects (e.g. \"jdbc:mysql:\/\/user:pass@host:port\/dbname\"), or a plain \"mysql:\/\/user:pass@host:port\/dbname\", or a PDO-style \"mysql:host=X;port=Y;dbname=Z;user=U;password=P\". Leave blank to rely on the panel's automatic database attachment instead.",
             "env_variable": "DB_CONNECTION_STRING",
@@ -241,7 +241,7 @@
             "field_type": "text"
         },
         {
-            "name": "System \u00b7 Update Check",
+            "name": "Egg \u00b7 Update Check",
             "description": "Check GitHub on startup and say in the console when the egg or the Docker image has an update.\n\n0 = false\n1 = true (default)",
             "env_variable": "UPDATE_CHECK",
             "default_value": "1",
@@ -251,7 +251,7 @@
             "field_type": "text"
         },
         {
-            "name": "System \u00b7 Startup Command",
+            "name": "Egg \u00b7 Startup Command",
             "description": "The command to startup the egg \r\n(Do not change if you do not know what you are doing!)",
             "env_variable": "STARTUP_CMD",
             "default_value": ".\/start.sh",

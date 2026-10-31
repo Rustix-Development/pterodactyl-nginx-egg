@@ -14,8 +14,8 @@
 
 Both use the same image, config files and startup script.
 
-- **WordPress** (Nginx Webhost): turn on *Website · WordPress* when creating the server and it's downloaded for you
-- **Composer**: list packages in *Website · Composer Modules* and they're installed into `webroot/`
+- **WordPress** (Nginx Webhost): turn on *Setup · WordPress* when creating the server and it's downloaded for you
+- **Composer**: list packages in *Setup · Composer Modules* and they're installed into `webroot/`
 - **Site variables**: site name and URL, Google Analytics, SMTP / mail, Cloudflare Turnstile,
   Discord and Google OAuth and a database connection string are passed to PHP, so your code
   reads them with `getenv()` instead of hardcoding them
@@ -46,25 +46,25 @@ proxy (nginx, Caddy, Cloudflare, ...) in front of that port.
 ## Variables
 
 All variables can be changed later under the server's **Startup** tab. Each name starts
-with its section (*Website*, *Git*, *Site*, *Mail*, *Forms*, *Login*, *Database*,
-*System*) so they stay grouped in the panel. The site variables only reach your PHP code;
+with its section (*Site*, *Git*, *Setup*, *Mail*, *Login*, *Security*, *Analytics*,
+*Database*, *Egg*) so they stay grouped in the panel. The site variables only reach your PHP code;
 the egg itself doesn't use them, so leave the ones you don't need blank.
 
-### Website
+### Site and setup
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| Website · Root Folder (`ROOT_FOLDER`) | | Folder in `webroot/` to serve at your domain's root, see [below](#serving-a-folder-at-the-root). Blank serves `webroot/` as is |
-| Website · 404 Page (`ERROR_404_PAGE`) | | Page to show for missing pages, see [below](#custom-404-page). Blank keeps sending them to `index.php` |
-| Website · Composer Modules (`COMPOSER_MODULES`) | | Space separated packages, e.g. `phpmailer/phpmailer vlucas/phpdotenv`. Pin a version with `vendor/package:^6.0` |
-| Website · WordPress (`WORDPRESS`) | `0` | Nginx Webhost only. Install WordPress into an empty `webroot/`. Finish setup at `/wp-admin` |
+| Site · Root Folder (`ROOT_FOLDER`) | | Folder in `webroot/` to serve at your domain's root, see [below](#serving-a-folder-at-the-root). Blank serves `webroot/` as is |
+| Site · 404 Page (`ERROR_404_PAGE`) | | Page to show for missing pages, see [below](#custom-404-page). Blank keeps sending them to `index.php` |
+| Setup · WordPress (`WORDPRESS`) | `0` | Nginx Webhost only. Install WordPress into an empty `webroot/`. Finish setup at `/wp-admin` |
+| Setup · Composer Modules (`COMPOSER_MODULES`) | | Space separated packages, e.g. `phpmailer/phpmailer vlucas/phpdotenv`. Pin a version with `vendor/package:^6.0` |
 
-### System
+### Egg
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| System · Update Check (`UPDATE_CHECK`) | `1` | Say in the console when the egg or the Docker image has an update |
-| System · Startup Command (`STARTUP_CMD`) | `./start.sh` | Leave as is unless you know you need to change it |
+| Egg · Update Check (`UPDATE_CHECK`) | `1` | Say in the console when the egg or the Docker image has an update |
+| Egg · Startup Command (`STARTUP_CMD`) | `./start.sh` | Leave as is unless you know you need to change it |
 
 Each Composer package is added once and then kept at that version. On every start
 `composer install` keeps `vendor/` in line with `composer.lock`.
@@ -132,14 +132,14 @@ same repo, a reinstall pulls it; any other files are left alone.
 | Section | Variables | Default | Typical use |
 |---------|-----------|---------|-------------|
 | Site | `SITE_NAME`, `SITE_URL` | `Website`, | Your site's name and public URL (no trailing slash) |
-| Site | `GA_MEASUREMENT_ID` | | Google Analytics 4 Measurement ID, e.g. `G-XXXXXXXXXX` |
 | Mail | `SMTP_HOST`, `SMTP_PORT` | `smtp.resend.com`, `465` | Mail server. For Gmail / Google Workspace use `smtp.gmail.com` and `587` |
 | Mail | `SMTP_USERNAME`, `SMTP_PASSWORD` | `resend`, | Mail login. For Resend, the password is your API key; for Gmail, an App Password |
 | Mail | `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME` | | Sender address and name |
 | Mail | `MAIL_TO_EMAIL` | | Where contact form mail goes |
-| Forms | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | | Cloudflare Turnstile bot check on forms |
 | Login | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | | Discord OAuth2 login |
 | Login | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | | Google OAuth2 login |
+| Security | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | | Cloudflare Turnstile bot check on forms |
+| Analytics | `GA_MEASUREMENT_ID` | | Google Analytics 4 Measurement ID, e.g. `G-XXXXXXXXXX` |
 | Database | `DB_CONNECTION_STRING` | | Database URL, e.g. `mysql://user:pass@host:3306/db` |
 
 ```php
@@ -199,7 +199,7 @@ Every time a server starts it checks for updates in the background and says in t
   egg's images: **Admin → Servers → server → Startup → Docker Image**, pick one of the
   egg's images.
 
-Turn it off per server with the *System · Update Check* variable.
+Turn it off per server with the *Egg · Update Check* variable.
 
 ## Troubleshooting
 
